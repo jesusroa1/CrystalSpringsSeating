@@ -321,6 +321,19 @@
   .ref-scroll{overflow:auto;padding:10px;-webkit-overflow-scrolling:touch}
   .ref-scroll img{display:block;width:100%;height:auto}
   .ref-hint{text-align:center;padding:0 12px 12px;color:var(--muted);font-size:11px}
+  .seed-body{padding:16px}
+  .seed-body p{font-size:12px;line-height:1.5;color:var(--muted);margin-bottom:10px}
+  .seed-box{
+    width:100%;min-height:132px;resize:vertical;
+    padding:11px;border:1px solid var(--gold-soft);border-radius:9px;
+    background:var(--paper);color:var(--ink);
+    font:11px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace;
+    overflow-wrap:anywhere;outline:none;
+  }
+  .seed-box:focus{border-color:var(--gold)}
+  .seed-error{min-height:18px;margin-top:8px;color:var(--rose);font-size:11px}
+  .seed-actions{display:flex;gap:8px;margin-top:8px}
+  .seed-actions .btn{min-width:0}
 </style>
 </head>
 <body>
@@ -370,7 +383,7 @@ const FIXTURES = [
 /* ---------------- state ---------------- */
 const STORAGE_KEY = 'wongroa-seating-v1';
 let state = { assignments:{}, capacities:{} };   // assignments: tableId -> [guestIdx]
-let ui = { view:'floor', sheet:null, table:null, pickerSearch:'', listSearch:'', hideUnlikely:false, reference:false };
+let ui = { view:'floor', sheet:null, table:null, pickerSearch:'', listSearch:'', hideUnlikely:false, reference:false, seedMode:null, seedText:'', seedError:'' };
 // ui.sheet: null | 'table' | 'picker'
 
 try {
@@ -473,6 +486,7 @@ function render(){
     <main>${ui.view==='floor' ? floorHTML() : guestsHTML()}</main>
     ${sheetHTML()}
     ${referenceHTML()}
+    ${seedHTML()}
   `;
 }
 
@@ -552,9 +566,95 @@ function guestsHTML(){
     </div>
     <div id="guestRows">${guestRowsHTML()}</div>
     <div class="actions">
+      <button class="btn" onclick="openSeedSave()">Save code</button>
+      <button class="btn" onclick="openSeedLoad()">Load code</button>
       <button class="btn" onclick="exportJSON()">Export JSON</button>
       <button class="btn" onclick="document.getElementById('importFile').click()">Import JSON</button>
       <button class="btn danger" onclick="clearAll()">Clear all assignments</button>
+    </div>`;
+}
+
+/* ---------------- compact save codes ---------------- */
+function guestListFingerprint(){
+  let hash = 2166136261;
+  const text = GUESTS.map(g => g[0]+'\u001f'+g[1]).join('\u001e');
+  for (let i=0; i<text.length; i++){
+    hash ^= text.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(36);
+}
+
+function makeSeed(){
+  const payload = {
+    v:1,
+    g:guestListFingerprint(),
+    a:Object.entries(state.assignments)
+      .filter(([,guests]) => guests.length)
+      .map(([table,guests]) => [+table, ...guests]),
+    c:Object.entries(state.capacities)
+      .filter(([,cap]) => cap !== DEFAULT_CAP)
+      .map(([table,cap]) => [+table, cap])
+  };
+  return btoa(JSON.stringify(payload)).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+}
+
+function parseSeed(raw){
+  const clean = raw.trim().replace(/\s/g,'').replace(/-/g,'+').replace(/_/g,'/');
+  const json = atob(clean + '='.repeat((4-clean.length%4)%4));
+  const data = JSON.parse(json);
+  if (!data || data.v !== 1 || !Array.isArray(data.a) || !Array.isArray(data.c)) throw new Error('Invalid save code.');
+  if (data.g !== guestListFingerprint()) throw new Error('This code was created for a different guest list.');
+
+  const validTables = new Set(TABLES.map(t => t.id));
+  const assignments = {}, capacities = {}, usedGuests = new Set(), usedTables = new Set(), capacityTables = new Set();
+  for (const row of data.c){
+    if (!Array.isArray(row) || row.length !== 2) throw new Error('Invalid table capacity data.');
+    const [table,cap] = row;
+    if (!validTables.has(table) || capacityTables.has(table) || !Number.isInteger(cap) || cap < 1 || cap > MAX_CAP) throw new Error('Invalid table capacity data.');
+    capacityTables.add(table);
+    capacities[table] = cap;
+  }
+  for (const row of data.a){
+    if (!Array.isArray(row) || row.length < 2 || !validTables.has(row[0]) || usedTables.has(row[0])) throw new Error('Invalid seating data.');
+    const table = row[0], guests = row.slice(1);
+    usedTables.add(table);
+    const cap = capacities[table] || DEFAULT_CAP;
+    if (guests.length > cap) throw new Error(`Table ${table} is over capacity.`);
+    for (const guest of guests){
+      if (!Number.isInteger(guest) || guest < 0 || guest >= GUESTS.length || usedGuests.has(guest)) throw new Error('Invalid or duplicate guest assignment.');
+      usedGuests.add(guest);
+    }
+    assignments[table] = guests;
+  }
+  return { assignments, capacities };
+}
+
+function seedHTML(){
+  if (!ui.seedMode) return '';
+  const saving = ui.seedMode === 'save';
+  return `
+    <div class="ref-modal" onclick="closeSeed()" role="dialog" aria-modal="true" aria-label="${saving?'Save':'Load'} seating code">
+      <div class="ref-card" onclick="event.stopPropagation()">
+        <div class="ref-hd">
+          <h2>${saving?'Save Seating Arrangement':'Load Seating Arrangement'}</h2>
+          <button class="xbtn" onclick="closeSeed()" aria-label="Close">&#10005;</button>
+        </div>
+        <div class="seed-body">
+          <p>${saving
+            ? 'Copy and keep this code. It contains the table assignments, but no guest names or passphrase.'
+            : 'Paste a previously saved code. Loading it will replace the current seating arrangement.'}</p>
+          <textarea class="seed-box" id="seedBox" ${saving?'readonly':''}
+            placeholder="Paste your seating code here" oninput="ui.seedText=this.value">${esc(ui.seedText)}</textarea>
+          <div class="seed-error" id="seedError">${esc(ui.seedError)}</div>
+          <div class="seed-actions">
+            ${saving
+              ? '<button class="btn" id="copySeedBtn" onclick="copySeed()">Copy code</button>'
+              : '<button class="btn" onclick="loadSeed()">Load arrangement</button>'}
+            <button class="btn" onclick="closeSeed()">Cancel</button>
+          </div>
+        </div>
+      </div>
     </div>`;
 }
 
@@ -642,6 +742,36 @@ window.closeSheet = () => { ui.sheet=null; ui.table=null; render(); };
 window.openPicker = () => { ui.sheet='picker'; ui.pickerSearch=''; render(); const s=document.getElementById('pickerSearch'); if(s) s.focus(); };
 window.openReference = () => { ui.reference=true; render(); };
 window.closeReference = () => { ui.reference=false; render(); };
+window.openSeedSave = () => { ui.seedMode='save'; ui.seedText=makeSeed(); ui.seedError=''; render(); };
+window.openSeedLoad = () => { ui.seedMode='load'; ui.seedText=''; ui.seedError=''; render(); const box=document.getElementById('seedBox'); if(box) box.focus(); };
+window.closeSeed = () => { ui.seedMode=null; ui.seedText=''; ui.seedError=''; render(); };
+
+window.copySeed = async () => {
+  const box = document.getElementById('seedBox');
+  const btn = document.getElementById('copySeedBtn');
+  try {
+    await navigator.clipboard.writeText(box.value);
+  } catch(e){
+    box.focus(); box.select();
+    document.execCommand('copy');
+  }
+  if (btn){ btn.textContent='Copied!'; setTimeout(() => { if(btn) btn.textContent='Copy code'; }, 1500); }
+};
+
+window.loadSeed = () => {
+  try {
+    const next = parseSeed(document.getElementById('seedBox').value);
+    if (!confirm('Replace the current seating plan with this saved arrangement?')) return;
+    state = next;
+    flushSave();
+    ui.seedMode=null; ui.seedText=''; ui.seedError='';
+    render();
+  } catch(e){
+    ui.seedError = e.message || 'Could not read that save code.';
+    const err = document.getElementById('seedError');
+    if (err) err.textContent = ui.seedError;
+  }
+};
 
 window.seat = i => {
   const id = ui.table;

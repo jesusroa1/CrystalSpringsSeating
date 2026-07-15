@@ -12,6 +12,7 @@ Tap a table on the floor plan to see who's seated and add guests from the master
 - **Guest list** — full roster with bride/groom/mutual color dots, Maybe/Unlikely tags, search, and a "hide unlikely" filter. Tap a guest's table badge to unseat them.
 - **Table capacity** — 10 seats by default, adjustable per table up to 14.
 - **Autosave** — every change is saved to the browser's `localStorage` (key `wongroa-seating-v1`).
+- **Save / load code** — generate a compact code for the current arrangement, copy it somewhere safe, and paste it back later to restore the plan. Codes contain guest indexes rather than names and are validated against the current guest list.
 - **Export / Import JSON** — buttons on the Guest List tab. `localStorage` doesn't sync between devices, so use export/import to move the plan between phones/browsers. Exports store guests by name, so they survive edits to the guest list order.
 - **Clear all assignments** — with a confirmation prompt.
 - **Passphrase gate** — the page asks for a passphrase before showing anything. Once entered correctly it's remembered on that device (`localStorage` key `wongroa-pass-v1`), so you only type it once per browser.
