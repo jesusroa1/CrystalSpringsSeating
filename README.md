@@ -6,7 +6,7 @@ Tap a table on the floor plan to see who's seated and add guests from the master
 
 ## Features
 
-- **Floor plan** — 16 round tables plus fixtures (band/DJ, dance floor, sweetheart table, cake, gifts, bar). A gold ring around each table shows how full it is; a table turns solid emerald when full.
+- **Floor plan** — 16 round tables laid out to match the Emerald Ballroom's real floor plan (a staggered 8-table wing plus a block of 8 in the main room). A gold ring around each table shows how full it is; a table turns solid emerald when full. A "View original design" button pops up the venue's floor-plan drawing (`floorplan.png`) for reference.
 - **Guest picker** — bottom sheet grouped by family group, searchable, only shows unseated guests.
 - **Guest list** — full roster with bride/groom/mutual color dots, Maybe/Unlikely tags, search, and a "hide unlikely" filter. Tap a guest's table badge to unseat them.
 - **Table capacity** — 10 seats by default, adjustable per table up to 14.
@@ -34,3 +34,4 @@ This is a convenience lock, not bank-grade security: it keeps bots and casual vi
 ## Files
 
 - `index.html` — the entire app (vanilla HTML/CSS/JS, fonts loaded from Google Fonts).
+- `floorplan.png` — the venue's original Emerald Ballroom floor-plan drawing, shown in the "View original design" popup.

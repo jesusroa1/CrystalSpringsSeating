@@ -75,43 +75,19 @@
   .plan{
     position:relative;
     width:100%;
-    aspect-ratio:3/4.4;
+    aspect-ratio:1336/1177;   /* matches the venue's floor-plan drawing */
     background:var(--card);
     border:1px solid var(--gold-soft);
     border-radius:14px;
     overflow:hidden;
   }
-  .fixture{
-    position:absolute;
-    transform:translate(-50%,-50%);
-    display:flex;align-items:center;justify-content:center;
-    font-size:9px;letter-spacing:.14em;text-transform:uppercase;
-    color:var(--muted);
-    background:var(--paper);
-    border:1px solid var(--gold-soft);
-    border-radius:8px;
-    text-align:center;line-height:1.3;
-    padding:2px;
-  }
-  .fixture.dance{
-    border:1.5px dashed var(--gold);
-    background:transparent;
-    color:var(--gold);
-    border-radius:10px;
-  }
-  .fixture.sweetheart{
-    background:var(--emerald);
-    color:#F3EFE4;
-    border-color:var(--emerald-deep);
-    border-radius:999px;
-  }
   .table{
     position:absolute;
     transform:translate(-50%,-50%);
-    width:16.5%;
+    width:11%;
     aspect-ratio:1;
     border-radius:50%;
-    padding:3px;
+    padding:2.5px;
     background:conic-gradient(var(--gold) calc(var(--fill)*1%), var(--gold-soft) 0);
     box-shadow:0 1px 4px rgba(43,42,38,.08);
   }
@@ -123,8 +99,8 @@
     gap:0;
   }
   .table.full .table-in{background:var(--emerald);color:#fff}
-  .table .num{font-family:'Cormorant Garamond',serif;font-size:17px;font-weight:600;line-height:1}
-  .table .cnt{font-size:8.5px;letter-spacing:.06em;color:var(--muted);margin-top:2px}
+  .table .num{font-family:'Cormorant Garamond',serif;font-size:15px;font-weight:600;line-height:1}
+  .table .cnt{font-size:8px;letter-spacing:.04em;color:var(--muted);margin-top:1px}
   .table.full .cnt{color:#CBE0D2}
   .legend{
     display:flex;gap:16px;justify-content:center;
@@ -132,6 +108,40 @@
     margin-top:12px;
   }
   .legend i{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px;vertical-align:-1px}
+  .planlink{
+    display:block;
+    margin:14px auto 0;
+    padding:9px 18px;
+    border:1px solid var(--gold-soft);
+    border-radius:999px;
+    background:var(--card);
+    font-size:11px;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--gold);
+  }
+
+  /* ---------- original-design popup ---------- */
+  .imgpop{
+    position:fixed;z-index:12;
+    left:50%;top:50%;transform:translate(-50%,-50%);
+    width:min(94vw,700px);max-height:88vh;
+    background:#fff;
+    border-radius:14px;
+    display:flex;flex-direction:column;
+    box-shadow:0 10px 40px rgba(18,55,38,.35);
+    overflow:hidden;
+  }
+  .imgpop-hd{
+    display:flex;align-items:center;justify-content:space-between;gap:10px;
+    padding:12px 16px;
+    border-bottom:1px solid var(--gold-soft);
+  }
+  .imgpop-hd h2{
+    font-family:'Cormorant Garamond',serif;
+    font-size:21px;font-weight:600;color:var(--emerald-deep);
+  }
+  .imgpop-hd .meta{font-size:10.5px;letter-spacing:.08em;color:var(--muted);margin-top:1px}
+  .imgpop-bd{overflow:auto;-webkit-overflow-scrolling:touch}
+  .imgpop-bd img{display:block;width:100%;height:auto}
 
   /* ---------- guest list ---------- */
   .toolbar{display:flex;gap:8px;margin-bottom:12px}
@@ -321,30 +331,25 @@ let unlocked = false;
 const SIDE_COLOR = { B:'#B08A3C', G:'#1F5A40', M:'#8B8578' };
 const SIDE_NAME  = { B:'Bride',   G:'Groom',   M:'Mutual'  };
 
-/* 16 round tables — % coordinates on the floor plan.
-   Two rows near the dance floor, then a lower wing. */
+/* 16 round tables — % coordinates matching the venue's floor-plan
+   drawing (see the "Original design" popup): a staggered 8-table wing
+   in the upper left, then a block of 8 in the main room. */
 const TABLES = [
-  {id:1,  x:11, y:22}, {id:2,  x:89, y:22},          // flanking the dance floor
-  {id:3,  x:13, y:46}, {id:4,  x:37, y:48}, {id:5,  x:63, y:48}, {id:6,  x:87, y:46},
-  {id:7,  x:13, y:62}, {id:8,  x:37, y:64}, {id:9,  x:63, y:64}, {id:10, x:87, y:62},
-  {id:11, x:13, y:78}, {id:12, x:37, y:80}, {id:13, x:63, y:80}, {id:14, x:87, y:78},
-  {id:15, x:30, y:93}, {id:16, x:54, y:93}           // lower wing
+  // upper-left wing
+  {id:1,  x:12.5, y:19.5}, {id:2,  x:23.5, y:26},   {id:3,  x:34.5, y:19.5},
+  {id:4,  x:12.5, y:33},   {id:5,  x:23.5, y:39.5}, {id:6,  x:34.5, y:33},
+  {id:7,  x:12.5, y:46.5}, {id:8,  x:34.5, y:46.5},
+  // main room, below the dance floor
+  {id:9,  x:44.5, y:54},   {id:10, x:56,   y:54},   {id:11, x:67.5, y:54},
+  {id:12, x:44.5, y:67.5}, {id:13, x:56,   y:67.5}, {id:14, x:67.5, y:67.5},
+  {id:15, x:56,   y:81},   {id:16, x:67.5, y:81}
 ];
 const DEFAULT_CAP = 10, MAX_CAP = 14;
-
-const FIXTURES = [
-  {label:'Band / DJ',        x:50, y:5,  w:34, h:6,  cls:''},
-  {label:'Dance Floor',      x:50, y:19, w:38, h:16, cls:'dance'},
-  {label:'Sweetheart Table', x:50, y:33, w:26, h:6,  cls:'sweetheart'},
-  {label:'Cake',             x:8,  y:93, w:12, h:6,  cls:''},
-  {label:'Gifts',            x:76, y:93, w:12, h:6,  cls:''},
-  {label:'Bar',              x:92, y:93, w:11, h:6,  cls:''}
-];
 
 /* ---------------- state ---------------- */
 const STORAGE_KEY = 'wongroa-seating-v1';
 let state = { assignments:{}, capacities:{} };   // assignments: tableId -> [guestIdx]
-let ui = { view:'floor', sheet:null, table:null, pickerSearch:'', listSearch:'', hideUnlikely:false };
+let ui = { view:'floor', sheet:null, table:null, pickerSearch:'', listSearch:'', hideUnlikely:false, showOriginal:false };
 // ui.sheet: null | 'table' | 'picker'
 
 try {
@@ -447,13 +452,11 @@ function render(){
     </header>
     <main>${ui.view==='floor' ? floorHTML() : guestsHTML()}</main>
     ${sheetHTML()}
+    ${originalHTML()}
   `;
 }
 
 function floorHTML(){
-  const fixtures = FIXTURES.map(f => `
-    <div class="fixture ${f.cls}" style="left:${f.x}%;top:${f.y}%;width:${f.w}%;height:${f.h}%">${f.label}</div>
-  `).join('');
   const tables = TABLES.map(t => {
     const n = tableGuests(t.id).length, cap = tableCap(t.id);
     const fill = Math.min(100, Math.round(n/cap*100));
@@ -466,11 +469,30 @@ function floorHTML(){
       </button>`;
   }).join('');
   return `
-    <div class="plan">${fixtures}${tables}</div>
+    <div class="plan">${tables}</div>
     <div class="legend">
       <span><i style="background:${SIDE_COLOR.B}"></i>Bride</span>
       <span><i style="background:${SIDE_COLOR.G}"></i>Groom</span>
       <span><i style="background:${SIDE_COLOR.M}"></i>Mutual</span>
+    </div>
+    <button class="planlink" onclick="toggleOriginal(true)">View original design</button>`;
+}
+
+function originalHTML(){
+  if (!ui.showOriginal) return '';
+  return `
+    <div class="scrim" onclick="toggleOriginal(false)"></div>
+    <div class="imgpop">
+      <div class="imgpop-hd">
+        <div>
+          <h2>Original design</h2>
+          <div class="meta">Emerald Ballroom &middot; venue floor plan</div>
+        </div>
+        <button class="xbtn" onclick="toggleOriginal(false)">&#10005;</button>
+      </div>
+      <div class="imgpop-bd">
+        <img src="floorplan.png" alt="Emerald Ballroom original floor plan">
+      </div>
     </div>`;
 }
 
@@ -590,7 +612,8 @@ function pickerListHTML(){
 }
 
 /* ---------------- actions (global for onclick) ---------------- */
-window.showView = v => { ui.view = v; ui.listSearch=''; render(); };
+window.showView = v => { ui.view = v; ui.listSearch=''; ui.showOriginal=false; render(); };
+window.toggleOriginal = v => { ui.showOriginal = v; render(); };
 window.openTable = id => { ui.sheet='table'; ui.table=id; ui.pickerSearch=''; render(); };
 window.closeSheet = () => { ui.sheet=null; ui.table=null; render(); };
 window.openPicker = () => { ui.sheet='picker'; ui.pickerSearch=''; render(); const s=document.getElementById('pickerSearch'); if(s) s.focus(); };
