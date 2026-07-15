@@ -138,7 +138,7 @@
   }
 
   /* ---------- guest list ---------- */
-  .toolbar{display:flex;gap:8px;margin-bottom:12px}
+  .toolbar{display:flex;flex-direction:column;gap:10px;margin-bottom:14px}
   .search{
     flex:1;
     padding:11px 14px;
@@ -150,7 +150,7 @@
   }
   .search:focus{border-color:var(--gold)}
   .chip{
-    padding:0 14px;
+    padding:8px 12px;
     border:1px solid var(--gold-soft);
     border-radius:999px;
     background:var(--card);
@@ -159,6 +159,10 @@
     white-space:nowrap;
   }
   .chip.on{background:var(--burgundy);border-color:var(--burgundy);color:#fff}
+  .filter-row{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+  .filter-label{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-right:2px}
+  .plan-tools{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .plan-tools .btn{background:var(--burgundy);color:#fff;border-color:var(--burgundy)}
   .ggroup{
     font-family:'Cormorant Garamond',serif;
     font-size:17px;font-weight:600;
@@ -383,7 +387,7 @@ const FIXTURES = [
 /* ---------------- state ---------------- */
 const STORAGE_KEY = 'wongroa-seating-v1';
 let state = { assignments:{}, capacities:{} };   // assignments: tableId -> [guestIdx]
-let ui = { view:'floor', sheet:null, table:null, pickerSearch:'', listSearch:'', hideUnlikely:false, reference:false, seedMode:null, seedText:'', seedError:'' };
+let ui = { view:'floor', sheet:null, table:null, pickerSearch:'', listSearch:'', statusFilter:{D:true,M:false,U:false}, reference:false, seedMode:null, seedText:'', seedError:'' };
 // ui.sheet: null | 'table' | 'picker'
 
 try {
@@ -539,7 +543,7 @@ function guestRowsHTML(){
   const q = ui.listSearch.toLowerCase();
   let html = '', lastGroup = null, shown = 0;
   GUESTS.forEach((g,i) => {
-    if (ui.hideUnlikely && g[4]==='U') return;
+    if (!ui.statusFilter[g[4]]) return;
     if (q && !(g[0]+' '+g[1]+' '+g[2]).toLowerCase().includes(q)) return;
     if (g[2] !== lastGroup){ html += `<div class="ggroup">${esc(g[2])}</div>`; lastGroup = g[2]; }
     const t = at[i];
@@ -557,17 +561,29 @@ function guestRowsHTML(){
   return shown ? html : '<div class="empty">No guests match.</div>';
 }
 
+function statusFilterHTML(){
+  const labels = {D:'Definite', M:'Maybe', U:'Unlikely'};
+  return `<div class="filter-row">
+    <span class="filter-label">Show status</span>
+    ${Object.entries(labels).map(([status,label]) => `
+      <button class="chip ${ui.statusFilter[status]?'on':''}" aria-pressed="${ui.statusFilter[status]}"
+              onclick="toggleStatus('${status}')">${label}</button>`).join('')}
+  </div>`;
+}
+
 function guestsHTML(){
   return `
     <div class="toolbar">
       <input class="search" id="listSearch" type="search" placeholder="Search guests&hellip;"
              value="${esc(ui.listSearch)}" oninput="onListSearch(this.value)">
-      <button class="chip ${ui.hideUnlikely?'on':''}" onclick="toggleUnlikely()">Hide unlikely</button>
+      ${statusFilterHTML()}
+      <div class="plan-tools">
+        <button class="btn" onclick="openSeedSave()">Save arrangement</button>
+        <button class="btn" onclick="openSeedLoad()">Enter save code</button>
+      </div>
     </div>
     <div id="guestRows">${guestRowsHTML()}</div>
     <div class="actions">
-      <button class="btn" onclick="openSeedSave()">Save code</button>
-      <button class="btn" onclick="openSeedLoad()">Load code</button>
       <button class="btn" onclick="exportJSON()">Export JSON</button>
       <button class="btn" onclick="document.getElementById('importFile').click()">Import JSON</button>
       <button class="btn danger" onclick="clearAll()">Clear all assignments</button>
@@ -709,6 +725,7 @@ function sheetHTML(){
         </div>
         <input class="search" id="pickerSearch" type="search" placeholder="Search unseated guests&hellip;"
                style="margin-top:10px;width:100%" value="${esc(ui.pickerSearch)}" oninput="onPickerSearch(this.value)">
+        <div style="margin-top:10px">${statusFilterHTML()}</div>
       </div>
       <div class="sheet-body" id="pickerList">${pickerListHTML()}</div>`;
   }
@@ -721,6 +738,7 @@ function pickerListHTML(){
   let html = '', lastGroup = null, shown = 0;
   GUESTS.forEach((g,i) => {
     if (at[i] !== undefined) return;
+    if (!ui.statusFilter[g[4]]) return;
     if (q && !(g[0]+' '+g[1]+' '+g[2]).toLowerCase().includes(q)) return;
     if (g[2] !== lastGroup){ html += `<div class="ggroup">${esc(g[2])}</div>`; lastGroup = g[2]; }
     html += `
@@ -807,7 +825,11 @@ window.capChange = d => {
   save(); render();
 };
 
-window.toggleUnlikely = () => { ui.hideUnlikely = !ui.hideUnlikely; render(); };
+window.toggleStatus = status => {
+  if (!Object.prototype.hasOwnProperty.call(ui.statusFilter,status)) return;
+  ui.statusFilter[status] = !ui.statusFilter[status];
+  render();
+};
 
 window.onListSearch = v => {
   ui.listSearch = v;

@@ -8,11 +8,11 @@ Tap a table on the floor plan to see who's seated and add guests from the master
 
 - **Floor plan** — 16 round tables arranged to match the supplied ballroom plan, plus fixtures (band/DJ, dance floor, sweetheart table, cake, gifts, bar). A gold ring around each table shows how full it is; a table turns solid burgundy when full.
 - **Original plan viewer** — opens the supplied ballroom image inside the app, with a link to view it full size.
-- **Guest picker** — bottom sheet grouped by family group, searchable, only shows unseated guests.
-- **Guest list** — full roster with bride/groom/mutual color dots, Maybe/Unlikely tags, search, and a "hide unlikely" filter. Tap a guest's table badge to unseat them.
+- **Guest picker** — bottom sheet grouped by family group, searchable, and limited to unseated guests matching the selected status filters.
+- **Guest list** — full roster with bride/groom/mutual color dots, Maybe/Unlikely tags, search, and independent Definite/Maybe/Unlikely filters. Only Definite guests are shown by default. Tap a guest's table badge to unseat them.
 - **Table capacity** — 10 seats by default, adjustable per table up to 14.
 - **Autosave** — every change is saved to the browser's `localStorage` (key `wongroa-seating-v1`).
-- **Save / load code** — generate a compact code for the current arrangement, copy it somewhere safe, and paste it back later to restore the plan. Codes contain guest indexes rather than names and are validated against the current guest list.
+- **Save / load code** — prominent controls under the Guest List filters generate a compact code for the current arrangement or restore one pasted later. Codes contain guest indexes rather than names and are validated against the current guest list.
 - **Export / Import JSON** — buttons on the Guest List tab. `localStorage` doesn't sync between devices, so use export/import to move the plan between phones/browsers. Exports store guests by name, so they survive edits to the guest list order.
 - **Clear all assignments** — with a confirmation prompt.
 - **Passphrase gate** — the page asks for a passphrase before showing anything. Once entered correctly it's remembered on that device (`localStorage` key `wongroa-pass-v1`), so you only type it once per browser.
