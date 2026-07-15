@@ -1,12 +1,13 @@
-# Wong–Roa Wedding Seating Chart
+# Wedding Planning Seating Chart
 
-Mobile-friendly seating chart for the Wong–Roa wedding — Emerald Ballroom, Crystal Springs Resort, November 1, 2026.
+Mobile-friendly wedding seating planner for the Emerald Ballroom at Crystal Springs Resort.
 
 Tap a table on the floor plan to see who's seated and add guests from the master list. Everything is a single `index.html` — no build step, no backend.
 
 ## Features
 
-- **Floor plan** — 16 round tables plus fixtures (band/DJ, dance floor, sweetheart table, cake, gifts, bar). A gold ring around each table shows how full it is; a table turns solid emerald when full.
+- **Floor plan** — 16 round tables arranged to match the supplied ballroom plan, plus fixtures (band/DJ, dance floor, sweetheart table, cake, gifts, bar). A gold ring around each table shows how full it is; a table turns solid burgundy when full.
+- **Original plan viewer** — opens the supplied ballroom image inside the app, with a link to view it full size.
 - **Guest picker** — bottom sheet grouped by family group, searchable, only shows unseated guests.
 - **Guest list** — full roster with bride/groom/mutual color dots, Maybe/Unlikely tags, search, and a "hide unlikely" filter. Tap a guest's table badge to unseat them.
 - **Table capacity** — 10 seats by default, adjustable per table up to 14.
@@ -34,3 +35,4 @@ This is a convenience lock, not bank-grade security: it keeps bots and casual vi
 ## Files
 
 - `index.html` — the entire app (vanilla HTML/CSS/JS, fonts loaded from Google Fonts).
+- `floor-plan.png` — the supplied original ballroom floor plan shown by the reference viewer.
