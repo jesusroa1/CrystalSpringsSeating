@@ -163,6 +163,23 @@
   .filter-label{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-right:2px}
   .plan-tools{display:grid;grid-template-columns:1fr 1fr;gap:8px}
   .plan-tools .btn{background:var(--burgundy);color:#fff;border-color:var(--burgundy)}
+  .howto{
+    background:var(--card);
+    border:1px solid var(--gold-soft);
+    border-radius:10px;
+    padding:0 14px;
+    font-size:12.5px;
+    color:var(--muted);
+  }
+  .howto summary{
+    cursor:pointer;
+    padding:12px 0;
+    font-size:11px;letter-spacing:.12em;text-transform:uppercase;
+    color:var(--burgundy);
+  }
+  .howto p,.howto ol{line-height:1.55;padding-bottom:12px}
+  .howto ol{padding-left:18px}
+  .howto b{color:var(--ink);font-weight:500}
   .ggroup{
     font-family:'Cormorant Garamond',serif;
     font-size:17px;font-weight:600;
@@ -387,7 +404,7 @@ const FIXTURES = [
 /* ---------------- state ---------------- */
 const STORAGE_KEY = 'wongroa-seating-v1';
 let state = { assignments:{}, capacities:{} };   // assignments: tableId -> [guestIdx]
-let ui = { view:'floor', sheet:null, table:null, pickerSearch:'', listSearch:'', statusFilter:{D:true,M:false,U:false}, reference:false, seedMode:null, seedText:'', seedName:'', seedError:'' };
+let ui = { view:'floor', sheet:null, table:null, pickerSearch:'', listSearch:'', statusFilter:{D:true,M:false,U:false}, reference:false, seedMode:null, seedText:'', seedName:'', seedError:'', howto:false };
 // ui.sheet: null | 'table' | 'picker'
 
 try {
@@ -462,6 +479,7 @@ window.gateSubmit = async e => {
   try {
     await unlock(input.value);
     render();
+    tryLoadFromHash();
   } catch(ex){
     err.textContent = 'That’s not it — try again.';
     input.value = '';
@@ -515,6 +533,7 @@ function floorHTML(){
         <button class="btn" onclick="openSeedSave()">Save arrangement</button>
         <button class="btn" onclick="openSeedLoad()">Enter save code</button>
       </div>
+      ${howToHTML()}
     </div>
     <div class="plan">${fixtures}${tables}</div>
     <div class="legend">
@@ -567,6 +586,20 @@ function guestRowsHTML(){
   return shown ? html : '<div class="empty">No guests match.</div>';
 }
 
+function howToHTML(){
+  return `
+    <details class="howto" ${ui.howto?'open':''} ontoggle="ui.howto=this.open">
+      <summary>How saving works</summary>
+      <p>Edits autosave on this device, but the browser can forget them &mdash; save a link whenever the plan is worth keeping.</p>
+      <ol>
+        <li><b>Save arrangement</b> turns the current seating plan into a link. Give it a name and the name plus today&rsquo;s date become part of the link, so versions are easy to tell apart.</li>
+        <li>Paste the link somewhere safe, like Apple Notes. The link holds the whole arrangement &mdash; table assignments only, no guest names.</li>
+        <li>Opening the link later (on any device, after the passphrase) loads that exact arrangement. You can also paste it into <b>Enter save code</b>.</li>
+      </ol>
+      <p><b>Export JSON</b> at the bottom of the guest list is a separate file backup &mdash; handy, but the links are the main way to save.</p>
+    </details>`;
+}
+
 function statusFilterHTML(){
   const labels = {D:'Definite', M:'Maybe', U:'Unlikely'};
   return `<div class="filter-row">
@@ -587,6 +620,7 @@ function guestsHTML(){
         <button class="btn" onclick="openSeedSave()">Save arrangement</button>
         <button class="btn" onclick="openSeedLoad()">Enter save code</button>
       </div>
+      ${howToHTML()}
     </div>
     <div id="guestRows">${guestRowsHTML()}</div>
     <div class="actions">
@@ -610,7 +644,8 @@ function guestListFingerprint(){
 /* An optional human-readable label ("beach plan") plus today's date get
    prefixed onto the code, separated by dots — e.g. beach-plan.2026-07-15.eyJ2…
    The slug never contains dots, so parseSeed can strip everything up to the
-   last dot and recover the raw code. */
+   last dot and recover the raw code. Saving hands out the code as a full
+   link (page URL + #code); opening such a link loads that arrangement. */
 function seedSlug(name){
   return String(name||'').trim().replace(/[^A-Za-z0-9]+/g,'-').replace(/^-+|-+$/g,'').slice(0,40);
 }
@@ -632,9 +667,14 @@ function makeSeed(name){
   return slug + '.' + new Date().toISOString().slice(0,10) + '.' + code;
 }
 
+function linkBase(){ return location.href.split('#')[0]; }
+function makeLink(name){ return linkBase() + '#' + makeSeed(name); }
+
 function parseSeed(raw){
   let clean = raw.trim().replace(/\s/g,'');
-  const dot = clean.lastIndexOf('.');
+  const hash = clean.lastIndexOf('#');          // accept a full pasted link
+  if (hash > -1) clean = clean.slice(hash + 1);
+  const dot = clean.lastIndexOf('.');           // strip the name/date prefix
   if (dot > -1) clean = clean.slice(dot + 1);
   clean = clean.replace(/-/g,'+').replace(/_/g,'/');
   const json = atob(clean + '='.repeat((4-clean.length%4)%4));
@@ -678,17 +718,17 @@ function seedHTML(){
         </div>
         <div class="seed-body">
           <p>${saving
-            ? 'Copy and keep this code (in Apple Notes, a text, wherever). Naming it adds a readable title and today&rsquo;s date to the front of the code. It contains the table assignments, but no guest names or passphrase.'
-            : 'Paste a previously saved code — with or without its name prefix. Loading it will replace the current seating arrangement.'}</p>
+            ? 'Copy this link and keep it wherever you keep notes (Apple Notes works great). Opening it later brings back this exact arrangement. Naming it puts a readable title and today&rsquo;s date in the link. It contains only table assignments &mdash; no guest names or passphrase.'
+            : 'Paste a previously saved link (or just its code part). Loading it will replace the current seating arrangement.'}</p>
           ${saving ? `<input class="search" id="seedName" type="text" placeholder="Name this arrangement (optional)"
             value="${esc(ui.seedName)}" oninput="onSeedName(this.value)"
             style="width:100%;border-radius:9px;margin-bottom:8px">` : ''}
           <textarea class="seed-box" id="seedBox" ${saving?'readonly':''}
-            placeholder="Paste your seating code here" oninput="ui.seedText=this.value">${esc(ui.seedText)}</textarea>
+            placeholder="Paste your saved link or code here" oninput="ui.seedText=this.value">${esc(ui.seedText)}</textarea>
           <div class="seed-error" id="seedError">${esc(ui.seedError)}</div>
           <div class="seed-actions">
             ${saving
-              ? '<button class="btn" id="copySeedBtn" onclick="copySeed()">Copy code</button>'
+              ? '<button class="btn" id="copySeedBtn" onclick="copySeed()">Copy link</button>'
               : '<button class="btn" onclick="loadSeed()">Load arrangement</button>'}
             <button class="btn" onclick="closeSeed()">Cancel</button>
           </div>
@@ -783,13 +823,13 @@ window.closeSheet = () => { ui.sheet=null; ui.table=null; render(); };
 window.openPicker = () => { ui.sheet='picker'; ui.pickerSearch=''; render(); const s=document.getElementById('pickerSearch'); if(s) s.focus(); };
 window.openReference = () => { ui.reference=true; render(); };
 window.closeReference = () => { ui.reference=false; render(); };
-window.openSeedSave = () => { ui.seedMode='save'; ui.seedName=''; ui.seedText=makeSeed(''); ui.seedError=''; render(); };
+window.openSeedSave = () => { ui.seedMode='save'; ui.seedName=''; ui.seedText=makeLink(''); ui.seedError=''; render(); };
 window.openSeedLoad = () => { ui.seedMode='load'; ui.seedText=''; ui.seedError=''; render(); const box=document.getElementById('seedBox'); if(box) box.focus(); };
 window.closeSeed = () => { ui.seedMode=null; ui.seedText=''; ui.seedName=''; ui.seedError=''; render(); };
 
 window.onSeedName = v => {
   ui.seedName = v;
-  ui.seedText = makeSeed(v);
+  ui.seedText = makeLink(v);
   const box = document.getElementById('seedBox');
   if (box) box.value = ui.seedText;
 };
@@ -803,7 +843,7 @@ window.copySeed = async () => {
     box.focus(); box.select();
     document.execCommand('copy');
   }
-  if (btn){ btn.textContent='Copied!'; setTimeout(() => { if(btn) btn.textContent='Copy code'; }, 1500); }
+  if (btn){ btn.textContent='Copied!'; setTimeout(() => { if(btn) btn.textContent='Copy link'; }, 1500); }
 };
 
 window.loadSeed = () => {
@@ -921,6 +961,27 @@ document.getElementById('importFile').addEventListener('change', e => {
   reader.readAsText(file);
 });
 
+/* Opening a saved link (page URL + #code) loads that arrangement once the
+   guest list is unlocked. The hash is cleared afterwards either way so a
+   refresh doesn't re-prompt. */
+function tryLoadFromHash(){
+  if (!unlocked || !location.hash || location.hash.length < 2) return;
+  const raw = decodeURIComponent(location.hash.slice(1));
+  history.replaceState(null, '', linkBase());
+  try {
+    const next = parseSeed(raw);
+    if (Object.keys(state.assignments).length &&
+        !confirm('This link contains a saved seating arrangement. Replace the current one with it?')) return;
+    state = next;
+    flushSave();
+    ui.sheet=null; ui.table=null; ui.seedMode=null;
+    render();
+  } catch(e){
+    alert('Could not load the arrangement from this link.\n' + (e.message || ''));
+  }
+}
+addEventListener('hashchange', tryLoadFromHash);
+
 /* boot: silently unlock with the remembered passphrase, else show the gate */
 (async () => {
   const saved = localStorage.getItem(PASS_KEY);
@@ -929,6 +990,7 @@ document.getElementById('importFile').addEventListener('change', e => {
     catch(e){ localStorage.removeItem(PASS_KEY); }
   }
   render();
+  tryLoadFromHash();
 })();
 </script>
 </body>
