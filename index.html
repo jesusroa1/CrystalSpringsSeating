@@ -118,6 +118,26 @@
   .table .num{font-family:'Cormorant Garamond',serif;font-size:17px;font-weight:600;line-height:1}
   .table .cnt{font-size:8.5px;letter-spacing:.06em;color:var(--muted);margin-top:2px}
   .table.full .cnt{color:#CBE0D2}
+  .slot{
+    position:absolute;
+    transform:translate(-50%,-50%);
+    width:11.5%;
+    aspect-ratio:1;
+    border-radius:50%;
+    border:1.5px dashed var(--gold-soft);
+    background:transparent;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    color:var(--muted);
+    opacity:.8;
+  }
+  .slot .slot-plus{font-size:15px;line-height:1;color:var(--gold)}
+  .slot .slot-id{font-size:8px;letter-spacing:.1em;margin-top:1px}
+  .plan-hint{
+    text-align:center;
+    font-size:10px;letter-spacing:.08em;text-transform:uppercase;
+    color:var(--muted);
+    margin-top:10px;
+  }
   .legend{
     display:flex;gap:16px;justify-content:center;
     font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);
@@ -280,6 +300,15 @@
     font-size:12px;letter-spacing:.14em;text-transform:uppercase;
   }
   .addbtn:disabled{background:var(--gold-soft);color:var(--muted)}
+  .rmtablebtn{
+    width:100%;
+    margin-top:10px;
+    padding:12px;
+    border-radius:10px;
+    border:1px solid var(--rose);
+    color:var(--rose);
+    font-size:11px;letter-spacing:.12em;text-transform:uppercase;
+  }
   .backlink{font-size:12px;letter-spacing:.08em;color:var(--gold);padding:4px 0}
 
   /* ---------- passphrase gate ---------- */
@@ -379,16 +408,26 @@ let unlocked = false;
 const SIDE_COLOR = { B:'#B08A3C', G:'#7A2638', M:'#8B8578' };
 const SIDE_NAME  = { B:'Bride',   G:'Groom',   M:'Mutual'  };
 
-/* 16 round tables — % coordinates matching the supplied ballroom plan.
-   Eight tables sit left of the dance floor and eight sit below it. */
-const TABLES = [
-  {id:1,  x:10, y:18}, {id:2,  x:24, y:24}, {id:3,  x:38, y:18},
-  {id:4,  x:10, y:34}, {id:5,  x:24, y:40}, {id:6,  x:38, y:34},
-  {id:7,  x:10, y:50}, {id:8,  x:38, y:50},
-  {id:9,  x:48, y:60}, {id:10, x:61, y:60}, {id:11, x:74, y:60},
-  {id:12, x:48, y:73}, {id:13, x:61, y:73}, {id:14, x:74, y:73},
-  {id:15, x:61, y:86}, {id:16, x:74, y:86}
+/* 18 table slots on a faint planning grid — a 3×3 block left of the
+   dance floor (L1–L9, reading left-to-right, top-to-bottom) and a 3×3
+   block below it (B1–B9). Slots hold a table or sit empty; tapping an
+   empty slot adds a table there. The default plan fills 16 slots,
+   matching the supplied ballroom plan (L8 and B7 stay open). */
+const SLOTS = [
+  {id:'L1', x:10, y:18}, {id:'L2', x:24, y:18}, {id:'L3', x:38, y:18},
+  {id:'L4', x:10, y:34}, {id:'L5', x:24, y:34}, {id:'L6', x:38, y:34},
+  {id:'L7', x:10, y:50}, {id:'L8', x:24, y:50}, {id:'L9', x:38, y:50},
+  {id:'B1', x:48, y:60}, {id:'B2', x:61, y:60}, {id:'B3', x:74, y:60},
+  {id:'B4', x:48, y:73}, {id:'B5', x:61, y:73}, {id:'B6', x:74, y:73},
+  {id:'B7', x:48, y:86}, {id:'B8', x:61, y:86}, {id:'B9', x:74, y:86}
 ];
+const SLOT_IDS = new Set(SLOTS.map(s => s.id));
+const DEFAULT_TABLES = SLOTS.map(s => s.id).filter(id => id !== 'L8' && id !== 'B7');
+/* saves made before the grid used table numbers 1–16 */
+const LEGACY_TABLE_SLOT = {
+  1:'L1', 2:'L2', 3:'L3', 4:'L4', 5:'L5', 6:'L6', 7:'L7', 8:'L9',
+  9:'B1', 10:'B2', 11:'B3', 12:'B4', 13:'B5', 14:'B6', 15:'B8', 16:'B9'
+};
 const DEFAULT_CAP = 10, MAX_CAP = 14;
 
 const FIXTURES = [
@@ -402,13 +441,31 @@ const FIXTURES = [
 
 /* ---------------- state ---------------- */
 const STORAGE_KEY = 'wongroa-seating-v1';
-let state = { assignments:{}, capacities:{} };   // assignments: tableId -> [guestIdx]
+let state = { assignments:{}, capacities:{}, tables:[...DEFAULT_TABLES] };   // assignments: slotId -> [guestIdx]
 let ui = { view:'floor', sheet:null, table:null, pickerSearch:'', listSearch:'', statusFilter:{D:true,M:false,U:false}, reference:false, seedMode:null, seedText:'', seedName:'', seedError:'', howto:false };
 // ui.sheet: null | 'table' | 'picker'
 
+/* Accepts current state (slot ids) or pre-grid state (table numbers 1–16)
+   and returns a clean {assignments, capacities, tables}. */
+function migrateState(saved){
+  const mapKey = k => SLOT_IDS.has(k) ? k : LEGACY_TABLE_SLOT[k];
+  const assignments = {}, capacities = {};
+  for (const t in saved.assignments || {}){
+    const id = mapKey(t);
+    if (id && Array.isArray(saved.assignments[t])) assignments[id] = saved.assignments[t];
+  }
+  for (const t in saved.capacities || {}){
+    const id = mapKey(t);
+    if (id) capacities[id] = saved.capacities[t];
+  }
+  const active = new Set(Array.isArray(saved.tables) ? saved.tables.filter(id => SLOT_IDS.has(id)) : DEFAULT_TABLES);
+  for (const id in assignments) active.add(id);
+  return { assignments, capacities, tables:SLOTS.map(s => s.id).filter(id => active.has(id)) };
+}
+
 try {
   const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
-  if (saved && saved.assignments) state = { assignments:saved.assignments||{}, capacities:saved.capacities||{} };
+  if (saved && saved.assignments) state = migrateState(saved);
 } catch(e) {}
 
 let saveTimer;
@@ -427,7 +484,7 @@ document.addEventListener('visibilitychange', () => { if (document.visibilitySta
 function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function seatedAt(){                       // guestIdx -> tableId
   const m = {};
-  for (const t in state.assignments) for (const g of state.assignments[t]) m[g] = +t;
+  for (const t in state.assignments) for (const g of state.assignments[t]) m[g] = t;
   return m;
 }
 function tableGuests(id){ return state.assignments[id] || []; }
@@ -517,13 +574,19 @@ function floorHTML(){
   const fixtures = FIXTURES.map(f => `
     <div class="fixture ${f.cls}" style="left:${f.x}%;top:${f.y}%;width:${f.w}%;height:${f.h}%">${f.label}</div>
   `).join('');
-  const tables = TABLES.map(t => {
-    const n = tableGuests(t.id).length, cap = tableCap(t.id);
+  const active = new Set(state.tables);
+  const tables = SLOTS.map(s => {
+    if (!active.has(s.id)) return `
+      <button class="slot" style="left:${s.x}%;top:${s.y}%" onclick="addTable('${s.id}')" aria-label="Add table ${s.id}">
+        <span class="slot-plus">+</span>
+        <span class="slot-id">${s.id}</span>
+      </button>`;
+    const n = tableGuests(s.id).length, cap = tableCap(s.id);
     const fill = Math.min(100, Math.round(n/cap*100));
     return `
-      <button class="table ${n>=cap?'full':''}" style="left:${t.x}%;top:${t.y}%;--fill:${fill}" onclick="openTable(${t.id})">
+      <button class="table ${n>=cap?'full':''}" style="left:${s.x}%;top:${s.y}%;--fill:${fill}" onclick="openTable('${s.id}')">
         <span class="table-in">
-          <span class="num">${t.id}</span>
+          <span class="num">${s.id}</span>
           <span class="cnt">${n}/${cap}</span>
         </span>
       </button>`;
@@ -537,6 +600,7 @@ function floorHTML(){
       ${howToHTML()}
     </div>
     <div class="plan">${fixtures}${tables}</div>
+    <div class="plan-hint">${state.tables.length} tables &middot; tap a dashed circle to add one</div>
     <div class="legend">
       <span><i style="background:${SIDE_COLOR.B}"></i>Bride</span>
       <span><i style="background:${SIDE_COLOR.G}"></i>Groom</span>
@@ -594,7 +658,7 @@ function howToHTML(){
       <p>Edits autosave on this device, but the browser can forget them &mdash; save a link whenever the plan is worth keeping.</p>
       <ol>
         <li><b>Save arrangement</b> turns the current seating plan into a link. Give it a name and the name plus today&rsquo;s date become part of the link, so versions are easy to tell apart.</li>
-        <li>Paste the link somewhere safe, like Apple Notes. The link holds the whole arrangement &mdash; table assignments only, no guest names.</li>
+        <li>Paste the link somewhere safe, like Apple Notes. The link holds the whole arrangement &mdash; which tables are on the floor and their assignments, no guest names.</li>
         <li>Opening the link later (on any device, after the passphrase) loads that exact arrangement. You can also paste it into <b>Enter save code</b>.</li>
       </ol>
       <p><b>Export JSON</b> at the bottom of the guest list is a separate file backup &mdash; handy, but the links are the main way to save.</p>
@@ -653,14 +717,15 @@ function seedSlug(name){
 
 function makeSeed(name){
   const payload = {
-    v:1,
+    v:2,
     g:guestListFingerprint(),
+    t:state.tables.slice(),
     a:Object.entries(state.assignments)
       .filter(([,guests]) => guests.length)
-      .map(([table,guests]) => [+table, ...guests]),
+      .map(([table,guests]) => [table, ...guests]),
     c:Object.entries(state.capacities)
       .filter(([,cap]) => cap !== DEFAULT_CAP)
-      .map(([table,cap]) => [+table, cap])
+      .map(([table,cap]) => [table, cap])
   };
   const code = btoa(JSON.stringify(payload)).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
   const slug = seedSlug(name);
@@ -680,21 +745,35 @@ function parseSeed(raw){
   clean = clean.replace(/-/g,'+').replace(/_/g,'/');
   const json = atob(clean + '='.repeat((4-clean.length%4)%4));
   const data = JSON.parse(json);
-  if (!data || data.v !== 1 || !Array.isArray(data.a) || !Array.isArray(data.c)) throw new Error('Invalid save code.');
+  if (!data || (data.v !== 1 && data.v !== 2) || !Array.isArray(data.a) || !Array.isArray(data.c)) throw new Error('Invalid save code.');
   if (data.g !== guestListFingerprint()) throw new Error('This code was created for a different guest list.');
 
-  const validTables = new Set(TABLES.map(t => t.id));
+  /* v1 codes predate the slot grid and use table numbers 1–16 */
+  const mapTable = data.v === 1
+    ? (id => LEGACY_TABLE_SLOT[id])
+    : (id => SLOT_IDS.has(id) ? id : undefined);
+  let active;
+  if (data.v === 1) active = new Set(DEFAULT_TABLES);
+  else {
+    if (!Array.isArray(data.t)) throw new Error('Invalid save code.');
+    active = new Set();
+    for (const id of data.t){
+      if (!SLOT_IDS.has(id) || active.has(id)) throw new Error('Invalid table data.');
+      active.add(id);
+    }
+  }
   const assignments = {}, capacities = {}, usedGuests = new Set(), usedTables = new Set(), capacityTables = new Set();
   for (const row of data.c){
     if (!Array.isArray(row) || row.length !== 2) throw new Error('Invalid table capacity data.');
-    const [table,cap] = row;
-    if (!validTables.has(table) || capacityTables.has(table) || !Number.isInteger(cap) || cap < 1 || cap > MAX_CAP) throw new Error('Invalid table capacity data.');
+    const table = mapTable(row[0]), cap = row[1];
+    if (!table || !active.has(table) || capacityTables.has(table) || !Number.isInteger(cap) || cap < 1 || cap > MAX_CAP) throw new Error('Invalid table capacity data.');
     capacityTables.add(table);
     capacities[table] = cap;
   }
   for (const row of data.a){
-    if (!Array.isArray(row) || row.length < 2 || !validTables.has(row[0]) || usedTables.has(row[0])) throw new Error('Invalid seating data.');
-    const table = row[0], guests = row.slice(1);
+    if (!Array.isArray(row) || row.length < 2) throw new Error('Invalid seating data.');
+    const table = mapTable(row[0]), guests = row.slice(1);
+    if (!table || !active.has(table) || usedTables.has(table)) throw new Error('Invalid seating data.');
     usedTables.add(table);
     const cap = capacities[table] || DEFAULT_CAP;
     if (guests.length > cap) throw new Error(`Table ${table} is over capacity.`);
@@ -704,7 +783,7 @@ function parseSeed(raw){
     }
     assignments[table] = guests;
   }
-  return { assignments, capacities };
+  return { assignments, capacities, tables:SLOTS.map(s => s.id).filter(id => active.has(id)) };
 }
 
 function seedHTML(){
@@ -719,7 +798,7 @@ function seedHTML(){
         </div>
         <div class="seed-body">
           <p>${saving
-            ? 'Copy this link and keep it wherever you keep notes (Apple Notes works great). Opening it later brings back this exact arrangement. Naming it puts a readable title and today&rsquo;s date in the link. It contains only table assignments &mdash; no guest names or passphrase.'
+            ? 'Copy this link and keep it wherever you keep notes (Apple Notes works great). Opening it later brings back this exact arrangement. Naming it puts a readable title and today&rsquo;s date in the link. It contains only the table layout and assignments &mdash; no guest names or passphrase.'
             : 'Paste a previously saved link (or just its code part). Loading it will replace the current seating arrangement.'}</p>
           ${saving ? `<input class="search" id="seedName" type="text" placeholder="Name this arrangement (optional)"
             value="${esc(ui.seedName)}" oninput="onSeedName(this.value)"
@@ -775,13 +854,14 @@ function sheetHTML(){
         <button class="addbtn" onclick="openPicker()" ${guests.length>=cap?'disabled':''}>
           ${guests.length>=cap ? 'Table full' : 'Add guests'}
         </button>
+        <button class="rmtablebtn" onclick="removeTable()">Remove this table</button>
       </div>`;
   } else { // picker
     body = `
       <div class="sheet-hd">
         <div class="row">
           <div>
-            <button class="backlink" onclick="openTable(${id})">&larr; Table ${id}</button>
+            <button class="backlink" onclick="openTable('${id}')">&larr; Table ${id}</button>
             <h2>Add guests</h2>
             <div class="meta">${tableGuests(id).length} of ${tableCap(id)} seats filled</div>
           </div>
@@ -889,6 +969,24 @@ window.unseat = i => {
   save(); render();
 };
 
+window.addTable = id => {
+  if (!SLOT_IDS.has(id) || state.tables.includes(id)) return;
+  state.tables = SLOTS.map(s => s.id).filter(s => s === id || state.tables.includes(s));
+  save(); render();
+};
+
+window.removeTable = () => {
+  const id = ui.table;
+  if (!id) return;
+  const n = tableGuests(id).length;
+  if (n && !confirm(`Remove table ${id} and unseat its ${n} guest${n === 1 ? '' : 's'}?`)) return;
+  state.tables = state.tables.filter(t => t !== id);
+  delete state.assignments[id];
+  delete state.capacities[id];
+  ui.sheet = null; ui.table = null;
+  save(); render();
+};
+
 window.capChange = d => {
   const id = ui.table;
   const next = Math.min(MAX_CAP, Math.max(Math.max(1, tableGuests(id).length), tableCap(id)+d));
@@ -920,7 +1018,7 @@ window.clearAll = () => {
 /* export / import — assignments stored by guest NAME so snapshots survive
    reordering of the guest list */
 window.exportJSON = () => {
-  const out = { v:1, exported:new Date().toISOString(), capacities:state.capacities, assignments:{} };
+  const out = { v:2, exported:new Date().toISOString(), tables:state.tables, capacities:state.capacities, assignments:{} };
   for (const t in state.assignments) out.assignments[t] = state.assignments[t].map(guestName);
   const blob = new Blob([JSON.stringify(out,null,2)], {type:'application/json'});
   const a = document.createElement('a');
@@ -951,8 +1049,7 @@ document.getElementById('importFile').addEventListener('change', e => {
         if (idxs.length) assignments[t] = idxs;
       }
       if (!confirm('Replace the current seating plan with the imported one?')) return;
-      state.assignments = assignments;
-      state.capacities = (data.capacities && typeof data.capacities==='object') ? data.capacities : {};
+      state = migrateState({ assignments, capacities:data.capacities, tables:data.tables });
       save(); render();
       if (missing.length) alert('Not found in guest list (skipped):\n' + missing.join('\n'));
     } catch(err){
