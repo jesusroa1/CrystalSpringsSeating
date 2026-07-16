@@ -430,6 +430,20 @@ const LEGACY_TABLE_SLOT = {
 };
 const DEFAULT_CAP = 10, MAX_CAP = 14;
 
+/* ---------------- preference presets ----------------
+   Starting-point arrangements generated from a written list of seating
+   preferences (bride's family near the center, CW Law up front, etc.).
+   Each preset stores a standard save code — the same format the
+   "Save arrangement" button produces — so it contains table layout and
+   guest INDEXES only, never names, and it is validated against the
+   current guest list when loaded. Loading a preset replaces the current
+   arrangement (after a confirm), then normal editing/autosave/save-code
+   flows take over; the preset itself never changes.
+   To add one: give Claude the preference list + passphrase, have it
+   generate the arrangement, and append an entry here. */
+const PRESETS = [
+];
+
 const FIXTURES = [
   {label:'Gift',             x:47, y:4,  w:8,  h:5,  cls:''},
   {label:'Sweetheart',       x:58, y:8,  w:14, h:6,  cls:'sweetheart'},
@@ -597,6 +611,7 @@ function floorHTML(){
         <button class="btn" onclick="openSeedSave()">Save arrangement</button>
         <button class="btn" onclick="openSeedLoad()">Enter save code</button>
       </div>
+      ${presetsHTML()}
       ${howToHTML()}
     </div>
     <div class="plan">${fixtures}${tables}</div>
@@ -665,6 +680,15 @@ function howToHTML(){
     </details>`;
 }
 
+function presetsHTML(){
+  if (!PRESETS.length) return '';
+  return `<div class="filter-row">
+    <span class="filter-label">Starting points</span>
+    ${PRESETS.map((p,i) => `
+      <button class="chip" onclick="applyPreset(${i})" title="Load the ${esc(p.name)} arrangement">${esc(p.name)}</button>`).join('')}
+  </div>`;
+}
+
 function statusFilterHTML(){
   const labels = {D:'Definite', M:'Maybe', U:'Unlikely'};
   return `<div class="filter-row">
@@ -685,6 +709,7 @@ function guestsHTML(){
         <button class="btn" onclick="openSeedSave()">Save arrangement</button>
         <button class="btn" onclick="openSeedLoad()">Enter save code</button>
       </div>
+      ${presetsHTML()}
       ${howToHTML()}
     </div>
     <div id="guestRows">${guestRowsHTML()}</div>
@@ -939,6 +964,21 @@ window.loadSeed = () => {
     ui.seedError = e.message || 'Could not read that save code.';
     const err = document.getElementById('seedError');
     if (err) err.textContent = ui.seedError;
+  }
+};
+
+window.applyPreset = i => {
+  const p = PRESETS[i];
+  if (!p) return;
+  if (!confirm(`Load the “${p.name}” starting point? This replaces the current seating arrangement — save a link first if the current plan is worth keeping.`)) return;
+  try {
+    const next = parseSeed(p.code);
+    state = next;
+    flushSave();
+    ui.sheet = null; ui.table = null; ui.view = 'floor';
+    render();
+  } catch(e){
+    alert(`Couldn’t load “${p.name}”: ${e.message || e}`);
   }
 };
 
